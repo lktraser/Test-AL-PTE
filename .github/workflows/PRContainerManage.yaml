@@ -1,0 +1,131 @@
+name: 'PR Container Management'
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to perform'
+        required: true
+        type: choice
+        options:
+          - create
+          - update
+          - remove
+      prId:
+        description: 'Pull Request ID'
+        required: true
+        type: string
+      containerName:
+        description: 'Override container name (optional)'
+        required: false
+        type: string
+      forceCleanup:
+        description: 'Force cleanup for remove operation'
+        required: false
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: powershell
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+env:
+  ALGoOrgSettings: ${{ vars.ALGoOrgSettings }}
+  ALGoRepoSettings: ${{ vars.ALGoRepoSettings }}
+
+jobs:
+  Initialization:
+    runs-on: [ windows-latest ]
+    outputs:
+      prContainersEnabled: ${{ steps.checkEnabled.outputs.prContainersEnabled }}
+      githubRunner: ${{ steps.ReadSettings.outputs.GitHubRunnerJson }}
+      githubRunnerShell: ${{ steps.ReadSettings.outputs.GitHubRunnerShell }}
+      operation: ${{ github.event.inputs.operation }}
+      prId: ${{ github.event.inputs.prId }}
+      containerName: ${{ github.event.inputs.containerName }}
+      forceCleanup: ${{ github.event.inputs.forceCleanup }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Initialize the workflow
+        id: init
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@main
+        with:
+          shell: powershell
+
+      - name: Read settings
+        id: ReadSettings
+        uses: microsoft/AL-Go-Actions/ReadSettings@main
+        with:
+          shell: powershell
+          get: prContainers
+
+      - name: Check PR Containers Enabled
+        id: checkEnabled
+        run: |
+          $settings = '${{ steps.ReadSettings.outputs.SettingsJson }}' | ConvertFrom-Json
+          $enabled = $false
+          if ($settings.prContainers -and $settings.prContainers.enabled) {
+            $enabled = $settings.prContainers.enabled
+          }
+          Add-Content -Encoding UTF8 -Path $env:GITHUB_OUTPUT -Value "prContainersEnabled=$enabled"
+
+
+  ManageContainer:
+    needs: [ Initialization ]
+    runs-on: ${{ fromJson(needs.Initialization.outputs.githubRunner) }}
+    if: needs.Initialization.outputs.prContainersEnabled == 'true'
+    defaults:
+      run:
+        shell: ${{ needs.Initialization.outputs.githubRunnerShell }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read secrets
+        id: ReadSecrets
+        uses: microsoft/AL-Go-Actions/ReadSecrets@main
+        with:
+          shell: ${{ needs.Initialization.outputs.githubRunnerShell }}
+          gitHubSecrets: ${{ toJson(secrets) }}
+          getSecrets: 'containerUsername,containerPassword,spUsername,spPassword,TRASERInternalFeedsToken'
+
+      - name: Manage PR Container
+        id: manage
+        uses: ./Actions/PRContainer
+        with:
+          shell: ${{ needs.Initialization.outputs.githubRunnerShell }}
+          operation: ${{ needs.Initialization.outputs.operation }}
+          prId: ${{ needs.Initialization.outputs.prId }}
+          containerName: ${{ needs.Initialization.outputs.containerName }}
+          forceCleanup: ${{ needs.Initialization.outputs.forceCleanup }}
+        env:
+          containerusername: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).containerUsername }}
+          containerpassword: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).containerPassword }}
+          spusername: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).spUsername }}
+          sppassword: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).spPassword }}
+          TRASERInternalFeedsToken: ${{ fromJson(steps.ReadSecrets.outputs.Secrets).TRASERInternalFeedsToken }}
+
+      - name: Report Results
+        if: always()
+        run: |
+          Write-Host "PR Container management completed"
+          Write-Host "Operation: ${{ needs.Initialization.outputs.operation }}"
+          Write-Host "PR ID: ${{ needs.Initialization.outputs.prId }}"
+          Write-Host "Container: ${{ steps.manage.outputs.containerName }}"
+          Write-Host "Message: ${{ steps.manage.outputs.message }}"
+          
+          if ('${{ steps.manage.outcome }}' -eq 'failure') {
+            Write-Host "::error::Container management failed: ${{ steps.manage.outputs.message }}"
+          } else {
+            Write-Host "✅ Container management completed successfully"
+            if ('${{ steps.manage.outputs.containerUrl }}' -ne '') {
+              Write-Host "🔗 Container URL: ${{ steps.manage.outputs.containerUrl }}"
+            }
+          }

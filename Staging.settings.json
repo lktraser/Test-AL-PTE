@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/AL-Go-Actions/main/settings.schema.json",
+  "type": "Staging",
+  "artifact": "////latest",
+  "cacheImageName": "",
+  "versioningStrategy": 15,
+  "appDependencyProbingPaths": [
+    {
+      "repo": "*",
+      "version": "latest",
+      "release_status": "staging",
+      "branch": "staging",
+      "projects": "*",
+      "authTokenSecret": "ghTokenWorkflow"
+    }
+  ],
+  "stagingDependencies": {
+    "enabled": true,
+    "preferStagingArtifacts": true,
+    "fallbackToRelease": true
+  }
+}
