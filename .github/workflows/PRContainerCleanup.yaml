@@ -32,13 +32,13 @@ jobs:
 
       - name: Initialize the workflow
         id: init
-        uses: microsoft/AL-Go-Actions/WorkflowInitialize@main
+        uses: lktraser/AL-Go-Actions/WorkflowInitialize@main
         with:
           shell: powershell
 
       - name: Read settings
         id: ReadSettings
-        uses: microsoft/AL-Go-Actions/ReadSettings@main
+        uses: lktraser/AL-Go-Actions/ReadSettings@main
         with:
           shell: powershell
           get: prContainers
@@ -66,7 +66,7 @@ jobs:
 
       - name: Read secrets
         id: ReadSecrets
-        uses: microsoft/AL-Go-Actions/ReadSecrets@main
+        uses: lktraser/AL-Go-Actions/ReadSecrets@main
         with:
           shell: ${{ needs.Initialization.outputs.githubRunnerShell }}
           gitHubSecrets: ${{ toJson(secrets) }}
