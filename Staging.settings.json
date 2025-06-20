@@ -3,7 +3,7 @@
   "type": "Staging",
   "artifact": "////latest",
   "cacheImageName": "",
-  "versioningStrategy": 15,
+  "versioningStrategy": 0,
   "appDependencyProbingPaths": [
     {
       "repo": "*",
